@@ -1,3 +1,5 @@
+from time import sleep
+
 try:
     from qgis.core import QgsNetworkAccessManager
     from qgis.PyQt.QtNetwork import QNetworkRequest
@@ -10,6 +12,8 @@ except ImportError:
 import requests
 from qgis.PyQt.QtCore import QSettings, QEventLoop
 
+import logging
+logger = logging.getLogger('ARR2019')
 
 
 from ..compatibility_routines import QT_EVENT_LOOP_EXCLUDE_USER_INPUT_EVENTS, QT_NETWORK_REQUEST_HTTP_STATUS_CODE_ATTRIBUTE
@@ -59,9 +63,10 @@ class DownloaderQGIS(Downloader):
     def error_string(self):
         return self.reply.errorString()
 
-    def download(self):
+    def download(self, retry_count = 5, retry_interval = range(5, 30, 5), validator = None):
         old_user_agent = None
         netman = QgsNetworkAccessManager.instance()
+        # QgsNetworkAccessManager.instance().cache().remove(QUrl(self.url))  # tmp
         req = QNetworkRequest(QUrl(self.url))
         for k, v in self.headers.items():
             req.setRawHeader(k.encode(), v.encode())
@@ -69,22 +74,49 @@ class DownloaderQGIS(Downloader):
                 if QSettings().contains('/qgis/networkAndProxy/userAgent'):
                     old_user_agent = QSettings().value('/qgis/networkAndProxy/userAgent')
                 QSettings().setValue('/qgis/networkAndProxy/userAgent', v)
-        reply = netman.get(req)
-        evloop = QEventLoop()
-        reply.finished.connect(evloop.quit)
-        evloop.exec(QT_EVENT_LOOP_EXCLUDE_USER_INPUT_EVENTS)
-        if old_user_agent:
-            QSettings().setValue('/qgis/networkAndProxy/userAgent', old_user_agent)
-        else:
-            QSettings().remove('/qgis/networkAndProxy/userAgent')
-        self.ret_code = reply.attribute(QT_NETWORK_REQUEST_HTTP_STATUS_CODE_ATTRIBUTE)
-        if self.ret_code != 200:
-            self.error_string = reply.errorString()
+        try_count = -1
+        retry_interval = list(retry_interval)
+        data = bytearray(b'')
+        while True:
+            try_count += 1
+            reply = netman.get(req)
+            evloop = QEventLoop()
+            reply.finished.connect(evloop.quit)
+            evloop.exec(QT_EVENT_LOOP_EXCLUDE_USER_INPUT_EVENTS)
+            if old_user_agent:
+                QSettings().setValue('/qgis/networkAndProxy/userAgent', old_user_agent)
+            else:
+                QSettings().remove('/qgis/networkAndProxy/userAgent')
+            self.ret_code = reply.attribute(QT_NETWORK_REQUEST_HTTP_STATUS_CODE_ATTRIBUTE)
+            if self.ret_code == 200:
+                data = bytearray(reply.readAll())
+            if self.ret_code != 200:
+                logger.info(f'HTTP get failed with code: {self.ret_code}')
+                if try_count < retry_count:
+                    t = retry_interval[try_count]
+                    logger.info(f'Trying again in {t} seconds...')
+                    sleep(t)
+                    logger.info(f'Retry attempt #{try_count+1}')
+                    continue
+                self.error_string = reply.errorString()
+            elif validator is not None and not validator(data):
+                if try_count < retry_count:
+                    t = retry_interval[try_count]
+                    logger.info(f'Trying again in {t} seconds...')
+                    sleep(t)
+                    logger.info(f'Retry attempt #{try_count + 1}')
+                    QgsNetworkAccessManager.instance().cache().remove(QUrl(self.url))
+                    continue
+                self.ret_code = None
+                self.error_string = 'Downloaded data is invalid or incomplete.'
+            break
+        if self.error_string:
             return
-        self.data = bytearray(reply.readAll())
         content_type = reply.rawHeader(b'Content-Type')
         if b'zip' not in content_type:
-            self.data = self.data.decode('utf-8')
+            self.data = data.decode('utf-8')
+        else:
+            self.data = data
 
 
 

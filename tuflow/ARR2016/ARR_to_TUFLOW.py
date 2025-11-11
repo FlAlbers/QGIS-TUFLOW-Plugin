@@ -113,6 +113,8 @@ def ARR_to_TUFLOW(args_list):
 
     # logger - new in 3.0.4 - move away from using stdout and stderr
     logger = logging.getLogger('ARR2019')
+    for hnd in logger.handlers.copy():
+        logger.removeHandler(hnd)
     logger.setLevel(logging.INFO)
     fh = logging.FileHandler(r'{0}{1}{2}_log.txt'.format(export_path, os.sep, site_name), mode='w')
     fh.setLevel(logging.INFO)
@@ -513,13 +515,13 @@ def ARR_to_TUFLOW(args_list):
 
         else:
             nsd = 'nsd[]=&nsdunit[]=m&'
-        url = 'http://www.bom.gov.au/water/designRainfalls/revised-ifd/?design=ifds&sdmin=true&sdhr=true&sdday' \
+        url = 'https://www.bom.gov.au/water/designRainfalls/revised-ifd/?design=ifds&sdmin=true&sdhr=true&sdday' \
               '=true&{0}coordinate_type=dd&latitude={1}&longitude={2}&user_label=&values=depths&update' \
               '=&year=2016'.format(nsd, abs(latitude), longitude)
-        url_frequent = 'http://www.bom.gov.au/water/designRainfalls/revised-ifd/?design=very_frequent&sdmin=true&sdhr' \
+        url_frequent = 'https://www.bom.gov.au/water/designRainfalls/revised-ifd/?design=very_frequent&sdmin=true&sdhr' \
                        '=true&sdday=true&{0}coordinate_type=dd&latitude={1}&longitude={2}&user_label=&values=depths&update'\
                        '=&year=2016'.format(nsd, abs(latitude), longitude)
-        url_rare = 'http://www.bom.gov.au/water/designRainfalls/revised-ifd/?design=rare&sdmin=true&sdhr=true&sdday=true' \
+        url_rare = 'https://www.bom.gov.au/water/designRainfalls/revised-ifd/?design=rare&sdmin=true&sdhr=true&sdday=true' \
                    '&{0}&coordinate_type=dd&latitude={1}&longitude={2}&user_label=brisbane&values=depths&update=&year=2016'\
                    .format(nsd, abs(latitude), longitude)
         # urlRequest = urllib2.Request(url, headers={'User-Agent': 'Magic Browser'})
@@ -537,7 +539,7 @@ def ARR_to_TUFLOW(args_list):
         downloader = Downloader(url, headers)
         if downloader.type() == 'Requests':
             logger.info('QGIS libraries not found. Using python requests library to download data. Unable to use any proxy settings in this mode.')
-        downloader.download()
+        downloader.download(validator=BOM.is_data_valid)
         if not downloader.ok():
             logger.error('Failed to get data from BOM website')
             logger.error('HTTP error {0}'.format(downloader.ret_code))
@@ -549,7 +551,7 @@ def ARR_to_TUFLOW(args_list):
         if frequent_events:
             logger.info('Attempting to access BOM frequent events: {0}'.format(url_frequent))
             downloader = Downloader(url_frequent, headers)
-            downloader.download()
+            downloader.download(validator=BOM.is_data_valid)
             if not downloader.ok():
                 logger.error('Failed to get data from BOM website')
                 logger.error('HTTP error {0}'.format(downloader.ret_code))
@@ -561,7 +563,7 @@ def ARR_to_TUFLOW(args_list):
         if rare_events:
             logger.info('Attempting to access BOM rare events: {0}'.format(url_rare))
             downloader = Downloader(url_rare, headers)
-            downloader.download()
+            downloader.download(validator=BOM.is_data_valid)
             if not downloader.ok():
                 logger.error('Failed to get data from BOM website')
                 logger.error('HTTP error {0}'.format(downloader.ret_code))
@@ -685,7 +687,7 @@ def ARR_to_TUFLOW(args_list):
         #     long_changed = longitude
 
         # ARR datahub
-        url = 'http://data.arr-software.org/?lon_coord={0}5&lat_coord={1}&type=text&All=1'.format(longitude, -abs(latitude))
+        url = 'https://data.arr-software.org/?lon_coord={0}5&lat_coord={1}&type=text&All=1'.format(longitude, -abs(latitude))
         downloader = Downloader(url, headers)
         downloader.download()
         if not downloader.ok():
@@ -718,7 +720,7 @@ def ARR_to_TUFLOW(args_list):
             atpRegion = Arr()
             atpRegionCode = atpRegion.arealTemporalPatternCode(arr_raw_fname)
             if atpRegionCode:
-                url_atp = 'http://data.arr-software.org//static/temporal_patterns/Areal/Areal_{0}.zip'.format(atpRegionCode)
+                url_atp = 'https://data.arr-software.org//static/temporal_patterns/Areal/Areal_{0}.zip'.format(atpRegionCode)
                 logger.info('URL: {0}'.format(url_atp))
                 downloader = Downloader(url_atp, headers)
                 downloader.download()
@@ -862,7 +864,7 @@ def ARR_to_TUFLOW(args_list):
                 for tp in add_tp:
                     add_tpFilename = os.path.join(export_path, 'data', 'ARR_Web_data_{0}_TP_{1}.txt'.format(site_name, tp))
                     tpCoord = tpRegion_coords(tp)
-                    url2 = 'http://data.arr-software.org/?lon_coord={0}5&lat_coord={1}&type=text&All=1' \
+                    url2 = 'https://data.arr-software.org/?lon_coord={0}5&lat_coord={1}&type=text&All=1' \
                            .format(tpCoord[1], tpCoord[0])
 
                     try:
@@ -903,7 +905,7 @@ def ARR_to_TUFLOW(args_list):
                     logger.info('Downloading areal temporal pattern for: {0}'.format(tp))
                     tpRegionCheck = Arr()
                     tpCode = tpRegionCheck.arealTemporalPatternCode(add_tpFilename)
-                    url2 = 'http://data.arr-software.org//static/temporal_patterns/Areal/Areal_{0}.zip'.format(tpCode)
+                    url2 = 'https://data.arr-software.org//static/temporal_patterns/Areal/Areal_{0}.zip'.format(tpCode)
                     downloader = Downloader(url2, headers)
                     downloader.download()
                     if not downloader.ok():

@@ -1141,6 +1141,7 @@ class TuResults():
 				nameAppend = '_CS'
 
 			# update active result type lists - start by figuring out what type it is and add to specific lists
+			updated_xs = False
 			if item not in self.activeResultsItems:
 				if item.ds_type == 1:  # scalar
 					self.tuResults2D.activeScalar = item.ds_name
@@ -1165,11 +1166,14 @@ class TuResults():
 						self.tuResults1D.typesXSRes.extend(x for x in self.tuResults1D.typesLP if x not in self.tuResults1D.typesXSRes)
 					elif item.ds_type == 8:  # XS
 						if item.ds_name not in self.tuResults1D.typesXS:
+							updated_xs = True
 							self.tuResults1D.lineXS.append(item.ds_name)
 					# if self.tuResults1D.activeType == 0:
 					if 0 in self.tuResults1D.activeType:
 						self.tuResults1D.typesTS.extend(x for x in self.tuResults1D.pointTS if x not in self.tuResults1D.typesTS)
 						self.tuResults1D.typesXSRes.extend(x for x in self.tuResults1D.pointTS if x not in self.tuResults1D.typesXSRes)
+						if updated_xs:
+							self.tuResults1D.typesXS.extend(x for x in self.tuResults1D.lineXS if x not in self.tuResults1D.typesXS)
 					# elif self.tuResults1D.activeType == 1:
 					if 1 in self.tuResults1D.activeType:
 						self.tuResults1D.typesTS.extend(x for x in self.tuResults1D.lineTS + self.tuResults1D.pointTS if x not in self.tuResults1D.typesTS)

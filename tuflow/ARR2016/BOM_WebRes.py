@@ -1,3 +1,5 @@
+import re
+
 import numpy
 import os
 import math
@@ -37,6 +39,14 @@ class Bom:
             self.error = True
             self.message = 'Unexpected error opening file {0}'.format(fname)
             return
+
+    @staticmethod
+    def is_data_valid(data):
+        return bool(re.findall(
+            r'class="ifdTextTableTitle">(?:IFD Design Rainfall|Very Frequent Design Rainfall|Rare Design Rainfall)',
+            data.decode('utf-8')
+        ))
+        # return 'class="ifdTextTableTitle">IFD Design Rainfall' in data.decode('utf-8')
 
     # noinspection PyBroadException
     def _load(self, fi, frequent_events, rare_events):
