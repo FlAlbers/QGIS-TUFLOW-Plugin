@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+import shlex
 from datetime import datetime
 from enum import Enum
 from itertools import chain
@@ -254,7 +255,14 @@ class SwmmSection:
                 no_filename = (~df['Fname'].isnull()) & (df['Fname'] != '')
                 df.loc[no_filename, 'Date'] = 'FILE'
                 df['Time'] = df['Time'].astype(str)
-                df.loc[no_filename, 'Time'] = df.loc[no_filename, 'Fname'].astype(str)
+                if no_filename.any():
+                    def _quote_fname(fname: str) -> str:
+                        fname_str = str(fname)
+                        if ' ' in fname_str and not (fname_str.startswith('"') and fname_str.endswith('"')):
+                            return f'"{fname_str}"'
+                        return fname_str
+
+                    df.loc[no_filename, 'Time'] = df.loc[no_filename, 'Fname'].apply(_quote_fname)
                 df['Value'] = df['Value'].astype(str).replace({'nan': '', '<NA': ''})
 
                 df = df[swmm_cols]
@@ -499,8 +507,8 @@ class SwmmSection:
 
             elif self.name == 'Timeseries':
                 section_data = {x[0]: list() for x in self.cols_common_start}
-                section_text_values = \
-                    [[y.strip() for y in x.split()] for x in text_array]
+                # Use shlex so quoted file paths (with spaces) stay intact
+                section_text_values = [shlex.split(x, posix=False) for x in text_array]
 
                 for row in section_text_values:
                     row_vals = {x[0]: None for x in self.cols_common_start}
@@ -508,8 +516,15 @@ class SwmmSection:
                     row_vals['Name'] = row[0]
 
                     # See if we are a file
-                    if row[1] == 'FILE':
-                        row_vals['Fname'] = row[2]
+                    if row[1].upper() == 'FILE':
+                        row_vals['Fname'] = ' '.join(row[2:]).strip('"')
+                        row_vals['Date'] = ''
+                        row_vals['Time'] = ''
+                        row_vals['Value'] = None
+
+                        for row_col, row_val in row_vals.items():
+                            section_data[row_col].append(row_val)
+                        continue
                     else:
                         row_vals['Fname'] = ''
                         # See if the next entry is a date
