@@ -25,7 +25,7 @@ except ImportError:
 from ..tuflow_results_gpkg import ResData_GPKG
 from ..gui import Logging
 
-from ..compatibility_routines import QT_ITEM_SELECTION_SELECT, QT_TIMESPEC_UTC, is_qt6, QT_ITEM_SELECTION_DESELECT
+from ..compatibility_routines import QT_ITEM_SELECTION_SELECT, QT_TIMESPEC_UTC, is_qt6, QT_ITEM_SELECTION_DESELECT, QT_TIMESPEC_LOCAL_TIME
 
 
 PROFILING = False
@@ -2468,7 +2468,7 @@ class TuResults():
 		if not modelDates:
 			return self.activeTime
 		pdt = qdt2dt(qdt)
-		if self.loadedTimeSpec > 0:
+		if self.loadedTimeSpec != QT_TIMESPEC_LOCAL_TIME:
 			pdt = datetime2timespec(pdt, self.timeSpec, self.loadedTimeSpec)
 		return TuResults.findDateClosest_31600(self, None, None, pdt, modelDates, 'closest', self.tuView.tuOptions.timeUnits)
 

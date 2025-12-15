@@ -1051,6 +1051,8 @@ class TuMenuFunctions():
 			dataHeader = self.getTimeSeriesPlotHeaders(labels, labels2, **kwargs)
 		elif plotNo == 1:
 			dataHeader = self.getLongPlotHeaders(labels, labels2, **kwargs)
+		elif plotNo == 3:
+			dataHeader = self.getVerticalProfilePlotHeaders(labels, labels2, **kwargs)
 		else:
 			dataHeader = ''
 
@@ -1119,7 +1121,44 @@ class TuMenuFunctions():
 				dataHeader = '{0},{1} ({2})'.format(dataHeader, label, labelUnit) if labelUnit else '{0},{1}'.format(dataHeader, label)
 				
 		return dataHeader
-	
+
+	def getVerticalProfilePlotHeaders(self, labels, labels2, **kwargs):
+
+		# get labels into one big comma delimiter string
+		dataHeader = None
+
+		for i, label in enumerate(labels):
+			# labelUnit = getUnit(label, self.tuView.canvas)
+			labelUnit = self.tuView.tuPlot.setAxisNames(0, label, return_unit_only=True, **kwargs)
+			if i == 0:
+				dataHeader = 'Elevation (m)'
+				dataHeader = '{0} ({1}), {2}'.format(label, labelUnit, dataHeader) if labelUnit else '{0},{1}'.format(
+					label, dataHeader)
+			else:
+				dataHeader = '{0},Elevation (m)'.format(dataHeader)
+				dataHeader = '{0} ({1}), {2}'.format(label, labelUnit, dataHeader) if labelUnit else '{0},{1}'.format(
+					label, dataHeader)
+		for i, label in enumerate(labels2):
+			# labelUnit = getUnit(label, self.tuView.canvas)
+			labelUnit = self.tuView.tuPlot.setAxisNames(0, label, return_unit_only=True, **kwargs)
+			if i == 0:
+				if not labels:
+					dataHeader = 'Elevation (m)'
+					dataHeader = '{0} ({1}), {2}'.format(label, labelUnit,
+														 dataHeader) if labelUnit else '{0},{1}'.format(label,
+																										dataHeader)
+				else:
+					dataHeader = '{0},Elevation (m))'.format(dataHeader)
+					dataHeader = '{0} ({1}), {2}'.format(label, labelUnit,
+														 dataHeader) if labelUnit else '{0},{1}'.format(label,
+																										dataHeader)
+			else:
+				dataHeader = '{0},Elevation (m)'.format(dataHeader)
+				dataHeader = '{0} ({1}), {2}'.format(label, labelUnit, dataHeader) if labelUnit else '{0},{1}'.format(
+					label, dataHeader)
+
+		return dataHeader
+
 	def getLongPlotHeaders(self, labels, labels2, **kwargs):
 		"""
 		Return column headings in comma delimiter format for long plot export to csv.

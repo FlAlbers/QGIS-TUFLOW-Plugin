@@ -42,6 +42,7 @@ import shutil
 import os
 import glob
 import sys
+import traceback
 
 from subprocess import Popen, PIPE
 
