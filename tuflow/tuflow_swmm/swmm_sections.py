@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from collections import defaultdict
-import shlex
 from datetime import datetime
 from enum import Enum
 from itertools import chain
 from typing import Any, Sequence, Union
 
+import shlex
 import pandas as pd
 import warnings
 
@@ -152,6 +152,12 @@ class SwmmSection:
     def convert_gpkg_df_to_swmm(self, df, feedback=ScreenProcessingFeedback()):
         swmm_cols = []
 
+        def _quote_if_needed(path: str) -> str:
+            path_str = str(path)
+            if ' ' in path_str and not (path_str.startswith('"') and path_str.endswith('"')):
+                return f'"{path_str}"'
+            return path_str
+
         # We want nullable integers and have to use 'Int64' (see
         # https://pandas.pydata.org/pandas-docs/stable/user_guide/integer_na.html)
         for col, coltype in self.cols_common_start:
@@ -255,14 +261,7 @@ class SwmmSection:
                 no_filename = (~df['Fname'].isnull()) & (df['Fname'] != '')
                 df.loc[no_filename, 'Date'] = 'FILE'
                 df['Time'] = df['Time'].astype(str)
-                if no_filename.any():
-                    def _quote_fname(fname: str) -> str:
-                        fname_str = str(fname)
-                        if ' ' in fname_str and not (fname_str.startswith('"') and fname_str.endswith('"')):
-                            return f'"{fname_str}"'
-                        return fname_str
-
-                    df.loc[no_filename, 'Time'] = df.loc[no_filename, 'Fname'].apply(_quote_fname)
+                df.loc[no_filename, 'Time'] = df.loc[no_filename, 'Fname'].apply(_quote_if_needed)
                 df['Value'] = df['Value'].astype(str).replace({'nan': '', '<NA': ''})
 
                 df = df[swmm_cols]
@@ -369,6 +368,12 @@ class SwmmSection:
 
     def convert_text_to_dataframe(self, text_array, extra_dfs, feedback=ScreenProcessingFeedback()):
 
+        def _tokenize(line: str, maxsplit: int | None = None) -> list[str]:
+            tokens = shlex.split(line, posix=False)
+            if maxsplit is not None and len(tokens) > maxsplit + 1:
+                tokens = tokens[:maxsplit] + [' '.join(tokens[maxsplit:])]
+            return [t.strip() for t in tokens]
+
         # Strip out any description statements (use a single ;) and store
         descriptions = {}
         curr_descript = ''
@@ -377,7 +382,8 @@ class SwmmSection:
             if line.startswith(';'):
                 curr_descript = line[1:]
             else:
-                start_word = line.split(' ')[0]
+                tokens = _tokenize(line)
+                start_word = tokens[0] if tokens else ''
                 if curr_descript != '':
                     descriptions[start_word] = curr_descript
                     curr_descript = ''
@@ -388,8 +394,7 @@ class SwmmSection:
         df = None
         if self.custom_mapping:
             if self.name.upper() == 'TRANSECTS':
-                section_text_values = \
-                    [[y.strip() for y in x.split()] for x in text_array]
+                section_text_values = [_tokenize(x) for x in text_array]
 
                 section_data = {
                     'Name': [],
@@ -450,8 +455,7 @@ class SwmmSection:
 
             if self.name == 'Patterns':
                 section_data = {x[0]: list() for x in self.cols_common_start}
-                section_text_values = \
-                    [[y.strip() for y in x.split()] for x in text_array]
+                section_text_values = [_tokenize(x) for x in text_array]
 
                 curr_name = None
                 curr_interval = None
@@ -507,8 +511,7 @@ class SwmmSection:
 
             elif self.name == 'Timeseries':
                 section_data = {x[0]: list() for x in self.cols_common_start}
-                # Use shlex so quoted file paths (with spaces) stay intact
-                section_text_values = [shlex.split(x, posix=False) for x in text_array]
+                section_text_values = [_tokenize(x) for x in text_array]
 
                 for row in section_text_values:
                     row_vals = {x[0]: None for x in self.cols_common_start}
@@ -517,14 +520,14 @@ class SwmmSection:
 
                     # See if we are a file
                     if row[1].upper() == 'FILE':
-                        row_vals['Fname'] = ' '.join(row[2:]).strip('"')
+                        # FILE entries only have the file name, but still need to be recorded
+                        row_vals['Fname'] = row[2] if len(row) > 2 else ''
                         row_vals['Date'] = ''
                         row_vals['Time'] = ''
-                        row_vals['Value'] = None
+                        row_vals['Value'] = ''
 
                         for row_col, row_val in row_vals.items():
                             section_data[row_col].append(row_val)
-                        continue
                     else:
                         row_vals['Fname'] = ''
                         # See if the next entry is a date
@@ -568,8 +571,7 @@ class SwmmSection:
             if self.name == 'Coverages' or self.name == 'Loadings':
                 # After the first column can be any number of pairs of Landuse/Percent add to different rows
                 section_data = {x[0]: list() for x in self.cols_common_start}
-                section_text_values = \
-                    [[y.strip() for y in x.split()] for x in text_array]
+                section_text_values = [_tokenize(x) for x in text_array]
 
                 for row in section_text_values:
                     # print(row)
@@ -585,8 +587,7 @@ class SwmmSection:
                 # Read curves where First row with a new curve has a inlet_type
                 # row1 may have first curve points x,y
                 # after row1 there is no inlet_type just x and y values
-                section_text_values = \
-                    [[y.strip() for y in x.split()] for x in text_array]
+                section_text_values = [_tokenize(x) for x in text_array]
 
                 curves_data = {x[0]: list() for x in self.cols_common_start}
 
@@ -623,8 +624,7 @@ class SwmmSection:
                 df = pd.DataFrame(curves_data)
 
             elif self.name == 'Inlets':  # Use wide format and use COMBINATION for Curb/Grate combination
-                section_text_values = \
-                    [[y.strip() for y in x.split()] for x in text_array]
+                section_text_values = [_tokenize(x) for x in text_array]
                 inlet_cols_list = [x[0] for x in self.cols_common_start]
                 # print(inlet_cols_list)
                 inlet_data = {x: list() for x in inlet_cols_list}
@@ -674,8 +674,7 @@ class SwmmSection:
                 df['Curb_Throat'] = df['Curb_Throat'].astype(str)
             elif self.name == 'Infiltration':
                 # Custom mapping because we have to check for the method at the end
-                section_text_values = \
-                    [[y.strip() for y in x.split()] for x in text_array]
+                section_text_values = [_tokenize(x) for x in text_array]
 
                 methods = []
                 section_text_values_new = []
@@ -699,8 +698,7 @@ class SwmmSection:
         else:
             if self.section_type == SectionType.KEYWORDS:
                 # Handle non-keyword columns (front)
-                section_text_values = \
-                    [[y.strip() for y in x.split()] for x in text_array]
+                section_text_values = [_tokenize(x) for x in text_array]
 
                 section_data = {}
                 for i_col, (col_name, col_type) in enumerate(self.cols_common_start):
@@ -784,8 +782,7 @@ class SwmmSection:
 
             elif self.section_type == SectionType.WIDE:
                 # Handle non-keyword columns (front)
-                section_text_values = \
-                    [[y.strip() for y in x.split()] for x in text_array]
+                section_text_values = [_tokenize(x) for x in text_array]
 
                 # Handle keyword columns
                 # keyword_cols_list = [[z[0] for z in y] for y in self.cols_keywords.values() if y is not None]
@@ -870,8 +867,7 @@ class SwmmSection:
                 if len(self.cols_common_start) == 1:
                     section_text_values = [[x] for x in text_array]
                 else:
-                    section_text_values = \
-                        [[y.strip() for y in x.split(maxsplit=len(self.cols_common_start) - 1)] for x in text_array]
+                    section_text_values = [_tokenize(x, maxsplit=len(self.cols_common_start) - 1) for x in text_array]
 
                 # print(section_text_values)
 
