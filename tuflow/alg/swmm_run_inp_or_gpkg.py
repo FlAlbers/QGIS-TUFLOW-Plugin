@@ -104,7 +104,7 @@ class RunSWMMInp(QgsProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterString(
                 'OUTPUT_BASENAME',
-                self.tr('Save as (saves next to selected INP or GPKG and applies to INP/RPT/OUT)'),
+                self.tr('Save with new name (saves next to selected INP or GPKG and applies to INP/RPT/OUT)'),
                 optional=True,
             )
         )

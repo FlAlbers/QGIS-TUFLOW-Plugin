@@ -5,7 +5,7 @@ Run a SWMM inp file using a SWMM executable.
 ## Inputs
 - SWMM Input File (Inp or GPKG): If a GPKG is provided, the inp is generated first, then SWMM runs.
 - SWMM Executable (optional): Path to `runswmm.exe`. Leave blank if `runswmm.exe` is in a standard location. 
-- Save as (optional): If set, it is used for the `.inp`, `.rpt`, and `.out` files. If not set, outputs use the input name.
+- Save with new name (optional): If set, it is used for the `.inp`, `.rpt`, and `.out` files. If not set, outputs use the input name.
 - Start Date (optional)
 - Start Time (optional)
 - End Date (optional)
